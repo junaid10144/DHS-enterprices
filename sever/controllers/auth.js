@@ -130,25 +130,30 @@ exports.forgotpassword = async (req, res, next) => {
 
 };
 
-exports.resetpassword = async (req, res, next) => {
-    const passwordResetToken = crypto.createHash('sha256').update(req.params.resetToken).digest("hex");
+exports.resetpassword = async (req, res, next) => { 
+    //const passwordResetToken = crypto.createHash('sha256').update(req.params.resetToken).digest("hex");
     try{
-        const user = await User.findPasswordResetToken({
-            passwordResetToken,
-            passwordResetExpire:Date.now()
+        let user = await User.findPasswordResetToken({
+            passwordResetToken:req.params.resetToken,
+            passwordResetExpire:new Date().toUTCString()
         });
         if (!user) return next(new ErrorResponse("Invalid Reset Token", 400));
        
        //continue krna yaha sy isme user.password nhi h
         user.password = req.body.password;
-        await User.removePasswordResetToken(user.user_id);
+        console.log("now removePasswordResetToken");
+        await User.removePasswordResetToken(user.cnic);
+        console.log("now updatePassword");
         user = await User.updatePassword(user);
+        console.log("check kro sara user ka data aya h");//removelater
+        console.log(user);//removelater
         res.status(201).json({ // token jana chaheye i think
             sucess:true,
             message:"Password Reset Success"
         })
 
     } catch(error){
+        next(error);
 
     }
 };

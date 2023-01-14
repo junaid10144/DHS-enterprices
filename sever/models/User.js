@@ -63,7 +63,7 @@ const updatePassword = async (user) => {
   try {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(user.password, salt);
-    console.log(passwordHash.length);//remove later
+    console.log("password length="+passwordHash.length+" , password = "+passwordHash);//remove later
     const results = await db.query("UPDATE account SET password=$1 where cnic=$2 RETURNING *", [passwordHash,user.cnic])
     console.log("succesfull update password");
     console.log(results.rows[0]);//console.log(results);
@@ -76,9 +76,11 @@ const updatePassword = async (user) => {
 
 const findPasswordResetToken = async (data) => {
   try {
-    const query = `select token,user_id,name,email,password,phone,country,city,address from password_reset_tokens join account on user_id=cnic where token = $1 and expiration_time > $2`;
+    console.log("date = "+data.passwordResetExpire+"token = "+data.passwordResetToken);
+    const query = `select token,cnic,name,email,password,phone,country,city,address from password_reset_tokens join account on user_id=cnic where token = $1 and expiration_time > $2`;
     const values = [data.passwordResetToken,data.passwordResetExpire];
     const results = await db.query(query,values);// query me sy extra column remove kr lena
+    console.log(results);
     return results.rows[0];
   } catch (error) {
     console.log(error);
@@ -88,15 +90,22 @@ const findPasswordResetToken = async (data) => {
 }
 
 const savePasswordResetToken = async (userId, token) => {
+  const expirationTime = new Date(); //resetPasswordExpire
+  expirationTime.setMinutes(expirationTime.getMinutes() + 10); //let resetPasswordExpire = Date.now() + 10 * (60 * 1000);//10 min token valid
   try {
-    const expirationTime = new Date(); //resetPasswordExpire
-    expirationTime.setMinutes(expirationTime.getMinutes() + 10); //let resetPasswordExpire = Date.now() + 10 * (60 * 1000);//10 min token valid
-    const query = 'INSERT INTO password_reset_tokens (user_id, token, expiration_time) VALUES ($1, $2, $3) RETURNING *';//Key (user_id)=(4220118729163) already exists.
-    const values = [userId, token, expirationTime];
+    const query = 'INSERT INTO password_reset_tokens (user_id, token, expiration_time) VALUES ($1, $2, $3)';
+    const values = [userId, token, expirationTime.toUTCString()];
     const results = await db.query(query, values);
     console.log("token save in database");
   } catch (error) {
     console.log(error);
+    if(error.code == '23505'){
+    const query = 'UPDATE password_reset_tokens SET token=$2, expiration_time=$3 WHERE user_id=$1';//Key (user_id)=(4220118729163) already exists.
+    const values = [userId, token, expirationTime];
+    const results = await db.query(query, values);
+    console.log("token change in database");
+    return ;
+    }
     throw error;
   }
 
@@ -104,7 +113,7 @@ const savePasswordResetToken = async (userId, token) => {
 
 const removePasswordResetToken = async (userId) => {
   try {
-    const results = await db.query('DELETE FROM password_reset_tokens WHERE user_cnic = $1', [userId]);
+    const results = await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
     console.log("token remove in database");
   } catch (error) {
     console.log(error);
